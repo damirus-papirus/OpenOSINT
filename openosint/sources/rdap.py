@@ -15,7 +15,17 @@ def lookup_rdap(query: str, kind: str) -> dict:
     url = f"https://rdap.org/{endpoint}/{quote(query, safe='')}"
     status, data, error = get_json(url, timeout=10)
     if error:
-        return {"source": "RDAP", "status": "error", "http_status": status, "error": error}
+        if status == 404:
+            return {
+                "source": "RDAP", "status": "empty", "http_status": status,
+                "error": error,
+                "note": "RDAP-сервер не нашёл запись по этому запросу. Домен или IP может существовать; возможны неподходящий сервер или отсутствие записи в реестре.",
+            }
+        return {
+            "source": "RDAP", "status": "error", "http_status": status,
+            "error": error,
+            "note": "Не удалось получить регистрационные сведения. Попробуйте позже; это не доказывает отсутствие домена или IP.",
+        }
     if not isinstance(data, dict):
         return {"source": "RDAP", "status": "error", "error": "Неожиданный формат ответа"}
     return {
