@@ -37,11 +37,10 @@ class Progress:
         percent = int(min(1.0, self.done / self.total) * 100)
         filled = int(self.width * percent / 100)
         bar = "█" * filled + "░" * (self.width - filled)
-        # Короткая строка не переносится на следующую строку в узком Termux.
-        line = f"OpenOSINT [{bar}] {percent}% | {self.current}"
-        if suffix:
-            line += f" | {suffix}"
-        sys.stdout.write("\r\033[K" + line)
+        # Только возврат каретки: обновляем ту же строку без ANSI-очистки
+        # и без дополнительных подписей, которые могут переноситься в Termux.
+        line = f"OpenOSINT [{bar}] {percent}%"
+        sys.stdout.write("\r" + line)
         sys.stdout.flush()
 
     def _animate(self) -> None:
