@@ -207,7 +207,7 @@ def _humanize_rdap_html(result: dict) -> str:
 
 
 def save_html(report: dict, path) -> None:
-    """Write a standalone HTML report with readable summaries and escaped raw details."""
+    """Write a standalone human-readable HTML report; raw JSON is exported separately."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     sections = []
@@ -237,11 +237,11 @@ def save_html(report: dict, path) -> None:
             if result.get("http_status") and result.get("status") in ("error", "empty"):
                 summary_parts.append(f"HTTP-код: {result['http_status']}")
             summary = "<p>" + html.escape(" · ".join(summary_parts)) + "</p>" if summary_parts else ""
-        details = html.escape(_json(result))
+        if not summary:
+            summary = "<p>Источник не вернул дополнительных отображаемых сведений.</p>"
         sections.append(
             f'<section><h2>{index}. {source} <span class="status">{status}</span></h2>'
-            f"{summary}<details><summary>Технические данные JSON</summary>"
-            f"<pre>{details}</pre></details></section>"
+            f"{summary}</section>"
         )
     notes = "".join(f"<li>{html.escape(str(note))}</li>" for note in report.get("notes", []))
     document = f"""<!doctype html>
