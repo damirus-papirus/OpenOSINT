@@ -18,9 +18,9 @@ from openosint.validation import validate_email, normalize_phone
 
 
 class Progress:
-    """Однострочный индикатор прогресса с процентами, без сторонних библиотек."""
+    """Компактный однострочный прогресс-бар для терминала."""
 
-    def __init__(self, total: int, enabled: bool = True, width: int = 24):
+    def __init__(self, total: int, enabled: bool = True, width: int = 16):
         self.total = max(1, total)
         self.done = 0
         self.enabled = enabled
@@ -30,33 +30,24 @@ class Progress:
         self._stop = threading.Event()
         self._thread = None
         self._tty = enabled and sys.stdout.isatty()
-        self._last_line_length = 0
 
     def _draw(self, suffix: str = "") -> None:
         if not self.enabled:
             return
-        ratio = min(1.0, self.done / self.total)
-        percent = int(ratio * 100)
-        filled = int(self.width * ratio)
+        percent = int(min(1.0, self.done / self.total) * 100)
+        filled = int(self.width * percent / 100)
         bar = "█" * filled + "░" * (self.width - filled)
-        elapsed = time.monotonic() - self.started
-        line = f"Прогресс [{bar}] {percent:3d}% · {self.done}/{self.total}"
-        if self.current:
-            line += f" · {self.current}"
-        line += f" · {elapsed:.1f} с"
+        # Короткая строка не переносится на следующую строку в узком Termux.
+        line = f"OpenOSINT [{bar}] {percent}% | {self.current}"
         if suffix:
-            line += f" · {suffix}"
-
-        # Возврат каретки обновляет ту же строку вместо вывода новой строки.
-        padding = " " * max(0, self._last_line_length - len(line))
-        sys.stdout.write("\r" + line + padding)
+            line += f" | {suffix}"
+        sys.stdout.write("\r\033[K" + line)
         sys.stdout.flush()
-        self._last_line_length = len(line)
 
     def _animate(self) -> None:
         frames = ("|", "/", "-", "\\")
         index = 0
-        while not self._stop.wait(0.12):
+        while not self._stop.wait(0.15):
             if self._tty:
                 self._draw(frames[index % len(frames)])
                 index += 1
@@ -65,7 +56,7 @@ class Progress:
         self.current = label
         self._stop.clear()
         if self.enabled:
-            self._draw("выполняется")
+            self._draw("работает")
             if self._tty:
                 self._thread = threading.Thread(target=self._animate, daemon=True)
                 self._thread.start()
@@ -86,7 +77,7 @@ class Progress:
 
     def finish(self) -> None:
         if self.enabled:
-            self._draw("завершено")
+            self._draw("готово")
             sys.stdout.write("\n")
             sys.stdout.flush()
 
