@@ -18,7 +18,7 @@ from openosint.validation import validate_email, normalize_phone
 
 
 class Progress:
-    """Dependency-free terminal progress bar with a spinner during network calls."""
+    """Однострочный индикатор прогресса с процентами, без сторонних библиотек."""
 
     def __init__(self, total: int, enabled: bool = True, width: int = 24):
         self.total = max(1, total)
@@ -30,23 +30,28 @@ class Progress:
         self._stop = threading.Event()
         self._thread = None
         self._tty = enabled and sys.stdout.isatty()
+        self._last_line_length = 0
 
     def _draw(self, suffix: str = "") -> None:
         if not self.enabled:
             return
         ratio = min(1.0, self.done / self.total)
+        percent = int(ratio * 100)
         filled = int(self.width * ratio)
         bar = "█" * filled + "░" * (self.width - filled)
         elapsed = time.monotonic() - self.started
-        line = f"Прогресс [{bar}] {self.done}/{self.total} · {elapsed:.1f} с"
+        line = f"Прогресс [{bar}] {percent:3d}% · {self.done}/{self.total}"
         if self.current:
             line += f" · {self.current}"
+        line += f" · {elapsed:.1f} с"
         if suffix:
             line += f" · {suffix}"
-        if self._tty:
-            print("\r" + line[: max(1, self.width + 100)].ljust(self.width + 100), end="", flush=True)
-        else:
-            print(line, flush=True)
+
+        # Возврат каретки обновляет ту же строку вместо вывода новой строки.
+        padding = " " * max(0, self._last_line_length - len(line))
+        sys.stdout.write("\r" + line + padding)
+        sys.stdout.flush()
+        self._last_line_length = len(line)
 
     def _animate(self) -> None:
         frames = ("|", "/", "-", "\\")
@@ -60,10 +65,8 @@ class Progress:
         self.current = label
         self._stop.clear()
         if self.enabled:
-            if not self._tty:
-                print(f"[{self.done + 1}/{self.total}] Выполняется: {label}…", flush=True)
-            else:
-                self._draw()
+            self._draw("выполняется")
+            if self._tty:
                 self._thread = threading.Thread(target=self._animate, daemon=True)
                 self._thread.start()
         try:
@@ -76,12 +79,16 @@ class Progress:
             self.done += 1
             if self.enabled:
                 self._draw("готово")
-                if self._tty:
-                    print()
             self.current = ""
 
     def add_step(self) -> None:
         self.total += 1
+
+    def finish(self) -> None:
+        if self.enabled:
+            self._draw("завершено")
+            sys.stdout.write("\n")
+            sys.stdout.flush()
 
 
 def main() -> int:
@@ -102,9 +109,12 @@ def main() -> int:
     query = args.query.strip()
     kind = detect(query)
     report = make_report(query, kind)
-    progress = Progress(total=3 if kind in ("domain", "url") else (
-        2 if kind == "ip" else 1 if kind == "username" and args.profiles else 1
-    ), enabled=not args.no_progress)
+    progress = Progress(
+        total=3 if kind in ("domain", "url") else (
+            2 if kind == "ip" else 1 if kind == "username" and args.profiles else 1
+        ),
+        enabled=not args.no_progress,
+    )
 
     if kind in ("domain", "url"):
         host = query if kind == "domain" else (urlparse(query).hostname or "")
@@ -142,7 +152,7 @@ def main() -> int:
     else:
         report["notes"].append("Запрос не распознан как технический идентификатор. Автоматический поиск личных данных не выполняется.")
 
-    print()
+    progress.finish()
     print(render_text(report, verbose=args.verbose))
     if args.json_path:
         save_json(report, Path(args.json_path))
