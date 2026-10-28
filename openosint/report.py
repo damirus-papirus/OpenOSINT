@@ -113,11 +113,13 @@ def render_text(report: dict, verbose: bool = False) -> str:
                 lines.append(f"Технический ID объекта: {result['handle']}")
             continue
 
-        if status == "error":
+        if status in ("error", "empty"):
+            if result.get("note"):
+                lines.append("Пояснение: " + str(result["note"]))
             if result.get("http_status"):
                 lines.append(f"HTTP-код: {result['http_status']}")
-            if result.get("error"):
-                lines.append(f"Причина: {result['error']}")
+            if result.get("error") and (verbose or not result.get("note")):
+                lines.append(f"Техническая причина: {result['error']}")
             continue
 
         if result.get("data") is not None:
@@ -230,6 +232,10 @@ def save_html(report: dict, path) -> None:
                     f"Проверено имён: {result.get('checked_count', 0)}; "
                     f"разрешаются в DNS: {result.get('resolves_count', 0)}"
                 )
+            if result.get("note") and result.get("status") in ("error", "empty"):
+                summary_parts.insert(0, str(result["note"]))
+            if result.get("http_status") and result.get("status") in ("error", "empty"):
+                summary_parts.append(f"HTTP-код: {result['http_status']}")
             summary = "<p>" + html.escape(" · ".join(summary_parts)) + "</p>" if summary_parts else ""
         details = html.escape(_json(result))
         sections.append(
