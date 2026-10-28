@@ -21,6 +21,7 @@ def lookup_rdap(query: str, kind: str) -> dict:
     return {
         "source": "RDAP",
         "status": "ok",
+        "query": query,
         "object_type": data.get("objectClassName"),
         "handle": data.get("handle"),
         "name": _pick(data, "name"),
